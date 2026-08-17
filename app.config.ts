@@ -17,8 +17,8 @@ const config: ExpoConfig = {
   android: { adaptiveIcon: { foregroundImage: './assets/images/adaptive-icon.png', backgroundColor: '#ffffff' } },
   plugins: ['expo-router'],
   extra: {
-    apiBaseUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://10.211.149.129:8081/api',
-  },
+  apiBaseUrl: process.env.EXPO_PUBLIC_API_URL ?? 'https://medicarehub.site/api',
+},
 };
 
 export default config;
