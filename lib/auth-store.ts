@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import { api } from './api';
+import { api, refreshAccessToken } from './api';
 import {
   clearTokens,
   getAccessToken,
   getRefreshToken,
   getUser,
+  isTokenExpired,
   saveTokens,
   saveUser,
   StoredUser,
@@ -25,8 +26,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   isHydrating: true,
 
   hydrate: async () => {
-    const token = await getAccessToken();
+    let token = await getAccessToken();
     const user = await getUser();
+
+    // Proactive refresh: if the stored access token is already expired
+    // (e.g. the app was closed overnight — access tokens live 15 minutes),
+    // refresh it right here before the dashboard fires its usual batch of
+    // requests, instead of letting every one of them fail with 401 first
+    // and only then triggering the reactive refresh in api.ts.
+    if (token && isTokenExpired(token)) {
+      const refreshed = await refreshAccessToken();
+      token = refreshed ? await getAccessToken() : null;
+    }
+
     set({ user, isLoggedIn: !!token && !!user, isHydrating: false });
   },
 

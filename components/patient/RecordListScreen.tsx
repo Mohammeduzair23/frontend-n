@@ -1,17 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { medicalApi, RecordResponse } from '../../lib/medical-api';
 import { Mode, MODES, RECORDS_CONFIG, RecordType } from '../../lib/records-config';
 import RecordCard from './RecordCard';
 import RecordFormModal from './RecordFormModal';
+import { ConfirmModal } from '../ConfirmModal';
+import { useToastStore } from '../../lib/toast-store';
 
 export default function RecordListScreen({ type }: { type: RecordType }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const config = RECORDS_CONFIG[type];
+  const showToast = useToastStore(s => s.show);
 
   const [records, setRecords] = useState<RecordResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +22,7 @@ export default function RecordListScreen({ type }: { type: RecordType }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMode, setModalMode] = useState<Mode>(MODES.ADD);
   const [editingRecord, setEditingRecord] = useState<RecordResponse | null>(null);
+  const [recordToDelete, setRecordToDelete] = useState<RecordResponse | null>(null);
 
   const fetchRecords = useCallback(async () => {
     try {
@@ -26,12 +30,12 @@ export default function RecordListScreen({ type }: { type: RecordType }) {
       setRecords(res.records ?? []);
     } catch (err) {
       console.error('Failed to load records:', err);
-      Alert.alert('Error', `Could not load ${config.title.toLowerCase()}s.`);
+      showToast('error', `Could not load ${config.title.toLowerCase()}s.`);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [type]);
+  }, [config.title, type]);
 
   useEffect(() => {
     fetchRecords();
@@ -50,26 +54,37 @@ export default function RecordListScreen({ type }: { type: RecordType }) {
   };
 
   const handleDelete = (record: any) => {
-    Alert.alert(
-      `Delete ${config.title}`,
-      'This cannot be undone. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await medicalApi.deleteRecord(type, record.id);
-              fetchRecords();
-            } catch (err) {
-              console.error('Delete failed:', err);
-              Alert.alert('Error', 'Failed to delete record.');
-            }
-          },
-        },
-      ]
-    );
+    setRecordToDelete(record);
+  };
+
+  const confirmDelete = async () => {
+    if (!recordToDelete) return;
+    const deletedRecordId = recordToDelete.id;
+    try {
+      const result = await medicalApi.deleteRecord(type, deletedRecordId);
+      if (!result.success) throw new Error(result.message || 'Failed to delete record.');
+      setRecordToDelete(null);
+      showToast('success', `${config.title} deleted`);
+      fetchRecords();
+    } catch (err) {
+      console.error('Delete failed:', err);
+      setRecordToDelete(null);
+
+      try {
+        const latest = await medicalApi.getRecords(type);
+        const stillExists = latest.records.some(record => record.id === deletedRecordId);
+        if (!stillExists) {
+          showToast('success', `${config.title} deleted`);
+          setRecords(latest.records);
+          return;
+        }
+      } catch {
+        // Keep the original delete error when verification is unavailable.
+      }
+
+      const responseMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      showToast('error', responseMessage || (err instanceof Error ? err.message : 'Failed to delete record.'));
+    }
   };
 
   return (
@@ -124,8 +139,16 @@ export default function RecordListScreen({ type }: { type: RecordType }) {
         mode={modalMode}
         recordId={(editingRecord as any)?.id}
         existingData={editingRecord as any}
-        onSuccess={(msg) => { Alert.alert('Success', msg); fetchRecords(); }}
-        onError={(msg) => Alert.alert('Error', msg)}
+        onSuccess={(msg) => { showToast('success', msg); fetchRecords(); }}
+        onError={(msg) => showToast('error', msg)}
+      />
+      <ConfirmModal
+        visible={recordToDelete !== null}
+        title={`Delete ${config.title}`}
+        message="This cannot be undone. Continue?"
+        confirmLabel="Delete"
+        onCancel={() => setRecordToDelete(null)}
+        onConfirm={confirmDelete}
       />
     </View>
   );

@@ -1,143 +1,168 @@
-# Welcome to your Expo app 👋
+# MedicareHub
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A modern healthcare mobile application built with Expo and React Native for patient-focused medical management. The app provides a secure and user-friendly experience for managing health information, appointments, prescriptions, lab results, notifications, and profile details.
 
-## Get started
+## Project Overview
 
-1. Install dependencies
+MedicareHub is designed to give patients a centralized digital space to access essential healthcare services from their mobile devices. The current version includes authentication, patient dashboard functionality, notifications, appointment tracking, and profile management.
 
-   ```bash
-   npm install
-   ```
+## Current Status
 
-2. Start the app
+This project has evolved beyond the default starter app and now includes:
 
-   ```bash
-   npx expo start
-   ```
+- User login, registration, and email verification flow
+- Patient dashboard with health summary and quick access cards
+- Medical records and lab result views
+- Prescription tracking and record management
+- Appointment listing and upcoming appointment panel
+- Notification center with unread badge support
+- Secure local storage for user data and auth state
+- Responsive mobile UI built with Expo Router and NativeWind styling
 
-In the output, you'll find options to open the app in a
+## Tech Stack
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+- React Native
+- Expo SDK
+- Expo Router
+- TypeScript
+- NativeWind
+- Zustand for app state
+- Expo Secure Store
+- Axios for API integration
 
 ## Project Structure
 
-```
+```text
 frontend-n/
+├── app/                                # Main app screens and routing
+│   ├── _layout.tsx                     # App-level layout
+│   ├── index.tsx                       # Landing/home screen with login redirect
+│   ├── login.tsx                       # Login screen
+│   ├── register.tsx                    # Registration screen
+│   ├── forgot-password.tsx             # Password recovery flow
+│   ├── verify-email.tsx                # Email verification flow
+│   ├── notifications.tsx               # Notification center
+│   ├── profile.tsx                     # User profile page
+│   ├── appointments-list.tsx          # Appointment list screen
+│   ├── doctor-search.tsx               # Doctor search flow
+│   ├── appointment-request.tsx        # Appointment request form
+│   └── patient/                        # Patient module screens
+│       ├── _layout.tsx                 # Patient navigation layout
+│       ├── index.tsx                   # Patient dashboard
+│       ├── lab.tsx                     # Lab result screen
+│       ├── medical.tsx                 # Medical record screen
+│       ├── prescription.tsx            # Prescription screen
+│       └── more.tsx                    # Additional settings/options
 │
-├── app/                          # Main app directory (file-based routing)
-│   ├── _layout.tsx              # Root layout
-│   ├── index.tsx                # Home page
-│   ├── login.tsx                # Login page
-│   ├── register.tsx             # Registration page
-│   ├── forgot-password.tsx      # Forgot password page
-│   ├── verify-email.tsx         # Email verification page
-│   │
-│   └── patient/                 # Patient feature pages
-│       ├── _layout.tsx          # Patient layout
-│       ├── index.tsx            # Patient dashboard
-│       ├── lab.tsx              # Lab reports
-│       ├── medical.tsx          # Medical records
-│       ├── prescription.tsx     # Prescriptions
-│       └── more.tsx             # More options
+├── components/                         # Reusable UI components
+│   ├── Avatar.tsx                      # User avatar
+│   ├── Button.tsx                      # Shared button component
+│   ├── ConfirmModal.tsx                # Confirmation modal
+│   ├── InlineToast.tsx                 # Toast notification component
+│   ├── Input.tsx                       # Input fields
+│   └── patient/                        # Patient-specific UI components
+│       ├── RecordCard.tsx              # Medical record card
+│       ├── RecordFormModal.tsx         # Record form modal
+│       └── RecordListScreen.tsx        # Record list view
 │
-├── components/                  # Reusable components
-│   ├── Avatar.tsx
-│   ├── Button.tsx
-│   ├── Input.tsx
-│   └── ProfileModal.tsx
+├── lib/                                # App logic and data layer
+│   ├── api.ts                          # Base API client
+│   ├── appointments-api.ts             # Appointment data functions
+│   ├── appointments-store.ts           # Appointment state store
+│   ├── auth-store.ts                   # Authentication state
+│   ├── doctor-search-api.ts            # Doctor search API logic
+│   ├── medical-api.ts                  # Medical records API layer
+│   ├── notifications-api.ts            # Notification API logic
+│   ├── notifications-store.ts          # Notification state
+│   ├── patient-dashboard.ts            # Dashboard data logic
+│   ├── profile-store.ts                # Profile state management
+│   ├── records-config.ts               # Record configuration settings
+│   ├── secure-store.ts                 # Secure persistent storage
+│   ├── toast-store.ts                  # Toast state store
+│   ├── userApi.ts                      # User-related API calls
+│   └── ...
 │
-├── lib/                         # Utility functions and store
-│   ├── api.ts                   # API calls
-│   ├── auth-store.ts            # Authentication state
-│   ├── patient-dashboard.ts     # Patient dashboard logic
-│   └── secure-store.ts          # Secure storage
+├── assets/                             # Static resources
+│   └── images/
 │
-├── Configuration Files
-│   ├── app.config.ts
-│   ├── metro.config.js
-│   ├── eslint.config.js
-│   ├── postcss.config.mjs
-│   ├── tsconfig.json
-│   └── nativewind-env.d.ts
-│
-├── Styling
-│   └── global.css
-│
-├── Documentation
-│   ├── README.md
-│   ├── AGENTS.md
-│   ├── CLAUDE.md
-│   └── package.json
+├── app-example/                        # Default Expo starter app
+├── global.css                          # Global styling
+├── nativewind-env.d.ts                 # NativeWind environment types
+├── app.config.ts                       # Expo configuration
+├── metro.config.js                     # Metro bundler config
+├── eslint.config.js                    # ESLint config
+├── postcss.config.mjs                  # PostCSS config
+├── tsconfig.json                       # TypeScript config
+├── package.json                        # Project dependencies and scripts
+├── README.md                           # Project documentation
+├── AGENTS.md                           # Agent instructions
+├── CLAUDE.md                           # Claude project notes
+└── .gitignore                          # Git ignore rules
 ```
 
-## Learn more
+## Getting Started
 
-To learn more about developing your project with Expo, look at the following resources:
+### Prerequisites
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- Node.js 18+
+- npm or yarn
+- Expo CLI
 
-## Join the community
+### Installation
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-
-## Folder structure
-
-Project folder layout for this workspace:
-
+```bash
+npm install
 ```
-AGENTS.md
-app.config.ts
-CLAUDE.md
-eslint.config.js
-global.css
-metro.config.js
-nativewind-env.d.ts
-package.json
-postcss.config.mjs
-README.md
-tsconfig.json
-app/
-   _layout.tsx
-   forgot-password.tsx
-   index.tsx
-   login.tsx
-   register.tsx
-   verify-email.tsx
-   patient/
-      _layout.tsx
-      index.tsx
-      lab.tsx
-      medical.tsx
-      more.tsx
-      prescription.tsx
-components/
-   Avatar.tsx
-   Button.tsx
-   Input.tsx
-   ProfileModal.tsx
-lib/
-   api.ts
-   auth-store.ts
-   patient-dashboard.ts
-   secure-store.ts
+
+### Run the app
+
+```bash
+npx expo start
 ```
+
+You can then choose to run the app in:
+
+- Expo Go
+- Android emulator
+- iOS simulator
+- Development build
+
+## Working Scripts
+
+```bash
+npm start
+npm run android
+npm run ios
+npm run web
+npm run lint
+npm run reset-project
+```
+
+## Key Features
+
+- Secure patient authentication flow
+- Health dashboard with quick access panels
+- Medical record viewing and management
+- Lab report overview
+- Medication and prescription tracking
+- Appointment management
+- Notification center with unread indicators
+- Profile and personal information management
+- Mobile-first, responsive user experience
+
+## Current Development Focus
+
+The app is currently centered around a patient healthcare experience with emphasis on:
+
+- health record visibility
+- appointment tracking
+- secure healthcare information access
+- streamlined patient-facing workflows
+
+## Notes
+
+This project is actively being developed as a healthcare management app and continues to evolve with additional patient and medical features.
+
+## License
+
+This project does not currently include a public license file. Add a license before publishing or sharing the project externally.

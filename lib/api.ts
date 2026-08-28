@@ -17,6 +17,34 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+/**
+ * Calls /auth/refresh with the stored refresh token and saves whatever new
+ * tokens come back. Returns true on success, false on failure (and clears
+ * stored tokens on failure, since a dead refresh token means the session is
+ * over either way).
+ *
+ * Extracted out of the response interceptor so it can also be called
+ * proactively from auth-store's hydrate() on app launch, not just
+ * reactively after a request has already failed with 401.
+ */
+export async function refreshAccessToken(): Promise<boolean> {
+  try {
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) throw new Error('No refresh token');
+
+    const { data } = await axios.post(
+      `${API_BASE_URL}/auth/refresh`,
+      { refreshToken },
+      { headers: { 'X-Client-Type': 'mobile' } }
+    );
+    await saveTokens(data.token, data.refreshToken);
+    return true;
+  } catch {
+    await clearTokens();
+    return false;
+  }
+}
+
 // Silent refresh — queue requests that arrive while a refresh is already in flight
 let isRefreshing = false;
 let pendingQueue: Array<() => void> = [];
@@ -40,22 +68,14 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshToken = await getRefreshToken();
-      if (!refreshToken) throw new Error('No refresh token');
-
-      const { data } = await axios.post(
-        `${API_BASE_URL}/auth/refresh`,
-        { refreshToken },
-        { headers: { 'X-Client-Type': 'mobile' } }
-      );
-      await saveTokens(data.token, data.refreshToken);
+      const refreshed = await refreshAccessToken();
+      if (!refreshed) throw new Error('Refresh failed');
 
       pendingQueue.forEach((resolve) => resolve());
       pendingQueue = [];
 
       return api(originalRequest);
     } catch (refreshError) {
-      await clearTokens();
       pendingQueue = [];
       return Promise.reject(refreshError);
     } finally {

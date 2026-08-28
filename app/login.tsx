@@ -44,7 +44,7 @@ export default function Login() {
     <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: '#ffffff' }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View className="px-6 pt-2">
-          <Pressable onPress={() => router.back()} className="w-10 h-10 items-center justify-center -ml-2">
+          <Pressable onPress={() => router.replace('/')} className="w-10 h-10 items-center justify-center -ml-2">
             <Ionicons name="chevron-back" size={26} color="#0f172a" />
           </Pressable>
         </View>

@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../../lib/auth-store';
-import { usePatientDashboardData } from '../../lib/patient-dashboard';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '../../components/Avatar';
-import { ProfileModal } from '../../components/ProfileModal';
+import { formatAppointmentTime, getUpcomingAppointments, parseAppointmentDate } from '../../lib/appointments-api';
+import { useAppointmentsStore } from '../../lib/appointments-store';
+import { useAuthStore } from '../../lib/auth-store';
+import { useNotificationsStore } from '../../lib/notifications-store';
+import { usePatientDashboardData } from '../../lib/patient-dashboard';
+import { useProfileStore } from '../../lib/profile-store';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -15,12 +18,15 @@ function getGreeting() {
   return { emoji: '👋', text: 'Good evening' };
 }
 
-// TODO: replace with a real display name once the backend has a name/fullName field.
-// Falling back to the email's local part, capitalized, for now.
+// Temporary display name for a brand-new user whose profile hasn't been
+// created yet — derived from the email's local part (before @), letters
+// only (no digits), first letter capitalized. e.g. "john123doe@x.com" -> "Johndoe"
 function displayNameFromEmail(email?: string | null) {
   if (!email) return 'there';
   const local = email.split('@')[0];
-  return local.charAt(0).toUpperCase() + local.slice(1);
+  const lettersOnly = local.replace(/[^a-zA-Z]/g, '');
+  if (!lettersOnly) return 'there';
+  return lettersOnly.charAt(0).toUpperCase() + lettersOnly.slice(1);
 }
 
 const quickAccess = [
@@ -34,18 +40,51 @@ const quickAccess = [
 export default function PatientHome() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, logout } = useAuthStore();
-  const { data, loading, fetch } = usePatientDashboardData();
+  const { user } = useAuthStore();
+  const { data, fetch } = usePatientDashboardData();
   const [showTip, setShowTip] = useState(true);
-  const [showProfile, setShowProfile] = useState(false);
+
+  // Bell badge — shared store, same source the notifications screen reads/writes.
+  const unreadNotifications = useNotificationsStore(s => s.unreadCount);
+  const fetchNotifications = useNotificationsStore(s => s.fetch);
+
+  // Profile — shared store, same source the profile screen reads/writes.
+  const profile = useProfileStore(s => s.profile);
+  const fetchProfile = useProfileStore(s => s.fetch);
+
+  // Appointments — shared store, same source the Appointments list reads/writes.
+  // "Next upcoming" is computed here (future-dated, active status, soonest
+  // first) rather than trusting raw list order, which is sorted by when the
+  // request was created, not by appointment date.
+  const appointments = useAppointmentsStore(s => s.appointments);
+  const appointmentsLoading = useAppointmentsStore(s => s.loading);
+  const fetchAppointments = useAppointmentsStore(s => s.fetch);
+  const upcomingAppointments = getUpcomingAppointments(appointments);
+  const nextAppointment = upcomingAppointments[0];
 
   useEffect(() => {
     fetch();
   }, [fetch]);
 
+  useEffect(() => {
+    fetchNotifications(true);
+    const interval = setInterval(() => fetchNotifications(false), 30000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    fetchProfile(!useProfileStore.getState().hasFetched);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    fetchAppointments(!useAppointmentsStore.getState().hasFetched);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const greeting = getGreeting();
-  const name = displayNameFromEmail(user?.email);
-  const nextAppointment = data.appointments[0];
+  const name = profile?.name?.trim() ? profile.name.trim() : displayNameFromEmail(user?.email);
 
   return (
     <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: '#f8fafc' }}>
@@ -60,19 +99,19 @@ export default function PatientHome() {
           </View>
           <View className="flex-row items-center" style={{ gap: 12 }}>
             <Pressable
-              onPress={() => router.push('/patient/more')}
+              onPress={() => router.push('/notifications')}
               className="w-11 h-11 rounded-full bg-white items-center justify-center border border-slate-200"
             >
               <Ionicons name="notifications-outline" size={20} color="#0f172a" />
-              {data.unreadNotificationsCount > 0 && (
+              {unreadNotifications > 0 && (
                 <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
                   <Text className="text-white text-[10px] font-bold">
-                    {data.unreadNotificationsCount}
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
                   </Text>
                 </View>
               )}
             </Pressable>
-            <Pressable onPress={() => setShowProfile(true)}>
+            <Pressable onPress={() => router.push('/profile')}>
               <Avatar label={name} />
             </Pressable>
           </View>
@@ -90,7 +129,7 @@ export default function PatientHome() {
           </View>
           <View className="flex-row justify-between">
             <SummaryItem icon="heart-outline" value="Good" label="Health Status" />
-            <SummaryItem icon="calendar-outline" value={String(data.appointments.length)} label="Upcoming" />
+            <SummaryItem icon="calendar-outline" value={String(upcomingAppointments.length)} label="Upcoming" />
             <SummaryItem icon="medkit-outline" value={String(data.prescriptionsCount)} label="Prescriptions" />
             <SummaryItem icon="flask-outline" value={String(data.labResultsCount)} label="Lab Reports" />
           </View>
@@ -102,7 +141,11 @@ export default function PatientHome() {
           {quickAccess.map((item) => (
             <Pressable
               key={item.key}
-              onPress={() => router.push(`/patient/${item.key === 'appointments' || item.key === 'notifications' ? 'more' : item.key}` as any)}
+              onPress={() => {
+                if (item.key === 'appointments') router.push('/appointments-list');
+                else if (item.key === 'notifications') router.push('/notifications');
+                else router.push(`/patient/${item.key}` as any);
+              }}
               className="bg-white rounded-2xl border border-slate-100 p-4 mb-4"
               style={{ width: '48%' }}
             >
@@ -122,28 +165,28 @@ export default function PatientHome() {
         <View className="bg-white rounded-2xl border border-slate-100 p-4 mb-6">
           <View className="flex-row items-center justify-between mb-3">
             <Text className="font-bold text-slate-900">Upcoming Appointment</Text>
-            <Pressable onPress={() => router.push('/patient/more')}>
+            <Pressable onPress={() => router.push('/appointments-list')}>
               <Text className="text-blue-600 text-sm font-medium">View All</Text>
             </Pressable>
           </View>
 
-          {loading ? (
+          {appointmentsLoading && appointments.length === 0 ? (
             <Text className="text-sm text-slate-400">Loading…</Text>
           ) : nextAppointment ? (
             <View className="flex-row items-center">
               <View className="bg-blue-50 rounded-xl px-3 py-2 items-center mr-3" style={{ minWidth: 56 }}>
                 <Text className="text-xs text-blue-600 font-medium">
-                  {new Date(nextAppointment.date).toLocaleString('en-US', { month: 'short' })}
+                  {parseAppointmentDate(nextAppointment.appointmentDate as any)?.toLocaleString('en-US', { month: 'short' }) ?? ''}
                 </Text>
                 <Text className="text-lg font-bold text-slate-900">
-                  {new Date(nextAppointment.date).getDate()}
+                  {parseAppointmentDate(nextAppointment.appointmentDate as any)?.getDate() ?? ''}
                 </Text>
               </View>
               <View className="flex-1">
-                <Text className="font-semibold text-slate-900">{nextAppointment.title}</Text>
-                <Text className="text-sm text-slate-500">{nextAppointment.doctorName}</Text>
+                <Text className="font-semibold text-slate-900">{nextAppointment.doctorName || 'Doctor'}</Text>
+                <Text className="text-sm text-slate-500">{nextAppointment.type}</Text>
                 <Text className="text-xs text-slate-400 mt-0.5">
-                  {nextAppointment.time} · {nextAppointment.location}
+                  {formatAppointmentTime(nextAppointment.appointmentTime as any)}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
@@ -169,14 +212,6 @@ export default function PatientHome() {
           </View>
         )}
       </ScrollView>
-
-      <ProfileModal
-        visible={showProfile}
-        onClose={() => setShowProfile(false)}
-        email={user?.email}
-        role={user?.role}
-        onLogout={logout}
-      />
     </View>
   );
 }

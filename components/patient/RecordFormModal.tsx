@@ -4,6 +4,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { medicalApi } from '../../lib/medical-api';
+import { useToastStore } from '../../lib/toast-store';
 import {
     buildFormDataForSubmit,
     FieldConfig,
@@ -108,13 +109,15 @@ function FileField({
   fieldName: string; label: string; accept: string[]; requiredOnAdd: boolean; mode: Mode;
   file: PickedFile | null; existingFilePath?: string | null; onPick: (f: PickedFile) => void; disabled: boolean;
 }) {
+  const showToast = useToastStore(s => s.show);
+
   const handlePick = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: accept, copyToCacheDirectory: true });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
 
     if (asset.size && asset.size > FILE_LIMITS.MAX_SIZE) {
-      alert('File size must be less than 10MB');
+      showToast('warning', 'File size must be less than 10MB');
       return;
     }
 
@@ -213,7 +216,9 @@ export default function RecordFormModal({
       }
     } catch (err) {
       console.error('Submit error:', err);
-      onError('Server error. Please try again.');
+      const responseMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      const errorMessage = err instanceof Error ? err.message : undefined;
+      onError(responseMessage || errorMessage || 'Server error. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

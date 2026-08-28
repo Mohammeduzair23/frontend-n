@@ -214,10 +214,25 @@ export const validateForm = (
 
 /**
  * Builds a FormData object for @RequestPart("data") on the backend — same
- * contract as the web version (JSON blob named "data" + file parts).
- * ASSUMPTION (unverified against the real backend): RN's global Blob/FormData
- * handles this the same way web's does. If add/update 500s, try replacing
- * the Blob below with a plain `JSON.stringify(jsonFields)` string.
+ * contract as the web version (a JSON part named "data" + separate named
+ * file parts), but NOT via `new Blob(...)`.
+ *
+ * FIX ("Network Error" on the client / "Required part 'data' is not present"
+ * on the server, seen together): `new Blob([...], { type: 'application/json' })`
+ * is exactly what the web frontend uses, but React Native's `Blob` is a JS
+ * polyfill that routes through a native BlobModule bridge when passed to
+ * FormData.append() — a bridge that's frequently not fully wired up in
+ * Expo-managed apps. When it breaks: the connection fails before axios gets
+ * a real HTTP response (-> "Network Error" client-side), while whatever
+ * malformed/incomplete body did reach the server can't be parsed into a
+ * valid "data" part (-> "Required part not present" server-side). Both logs
+ * are two symptoms of the same broken Blob transfer.
+ *
+ * The fix is RN FormData's own special non-file part shape: `{ string, type }`.
+ * This is understood natively by RN's networking layer (the same way
+ * `{ uri, name, type }` is the special shape for file parts below), gives
+ * Spring the `application/json` content-type its DTO binding needs, and
+ * never touches the unreliable Blob path at all.
  */
 export const buildFormDataForSubmit = (
   type: RecordType,
@@ -234,10 +249,10 @@ export const buildFormDataForSubmit = (
     }
   });
 
-  submitData.append(
-    'data',
-    new Blob([JSON.stringify(jsonFields)], { type: 'application/json' }) as any
-  );
+  submitData.append('data', {
+    string: JSON.stringify(jsonFields),
+    type: 'application/json',
+  } as any);
 
   Object.keys(config.files).forEach(fileName => {
     const file = formData[fileName] as PickedFile | null;

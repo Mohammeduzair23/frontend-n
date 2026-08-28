@@ -52,25 +52,51 @@ const ENDPOINTS: Record<RecordType, string> = {
   [RECORD_TYPES.LAB]: '/lab/records',
 };
 
-// Leave Content-Type unset — RN's networking layer generates the multipart
-// boundary itself; setting 'multipart/form-data' manually drops the boundary
-// and the backend can't parse the parts. Same convention as web axiosConfig.
-const MULTIPART = { headers: { 'Content-Type': undefined } } as const;
+// FIX HISTORY for "Required part 'data' is not present":
+//
+// Round 1: added `transformRequest: (data) => data` — bypasses axios's
+// default transform, which can JSON-stringify RN's FormData into "{}" if
+// axios's FormData detection misses it. Necessary, but not sufficient alone.
+//
+// Round 2 (this one): removed the explicit `Content-Type: multipart/form-data`
+// header entirely. Setting that header yourself — even without a boundary —
+// can make some RN/native networking layers treat content-type as "already
+// handled," so they skip auto-generating the `boundary=...` parameter. With
+// no boundary, the server can't split the body into parts at all, which
+// surfaces as this exact "part not present" error. The fix is to not set
+// Content-Type at all here (not even to `undefined` as a header value —
+// omit the key entirely) so RN's XHR implementation owns both the
+// Content-Type and the boundary when it sees a FormData body.
+const MULTIPART = {
+  transformRequest: (data: FormData) => data,
+};
 
 export const medicalApi = {
   getRecords: (type: RecordType) =>
     api.get<{ success: boolean; count: number; records: RecordResponse[] }>(ENDPOINTS[type])
-      .then(res => res.data),
+      .then(res => {
+        if (!res.data.success) throw new Error('The server could not load records.');
+        return res.data;
+      }),
 
   addRecord: (type: RecordType, formData: FormData) =>
     api.post<{ success: boolean; record: RecordResponse }>(ENDPOINTS[type], formData, MULTIPART)
-      .then(res => res.data),
+      .then(res => {
+        if (!res.data.success) throw new Error('The server could not add this record.');
+        return res.data;
+      }),
 
   updateRecord: (type: RecordType, recordId: string, formData: FormData) =>
     api.put<{ success: boolean; record: RecordResponse }>(`${ENDPOINTS[type]}/${recordId}`, formData, MULTIPART)
-      .then(res => res.data),
+      .then(res => {
+        if (!res.data.success) throw new Error('The server could not update this record.');
+        return res.data;
+      }),
 
   deleteRecord: (type: RecordType, recordId: string) =>
     api.delete<{ success: boolean; message: string }>(`${ENDPOINTS[type]}/${recordId}`)
-      .then(res => res.data),
+      .then(res => {
+        if (!res.data.success) throw new Error(res.data.message || 'The server could not delete this record.');
+        return res.data;
+      }),
 };
